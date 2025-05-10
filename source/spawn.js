@@ -1,8 +1,9 @@
 import {spawn} from 'node:child_process';
 import {once} from 'node:events';
 import process from 'node:process';
-import {applyForceShell} from './windows.js';
+import {shouldForceShell, applyForceShell} from './windows.js';
 import {getResultError} from './result.js';
+import {IS_WINDOWS, NODE_EXECUTABLES} from './constants.js';
 
 export const spawnSubprocess = async (file, commandArguments, options, context) => {
 	try {
@@ -10,13 +11,19 @@ export const spawnSubprocess = async (file, commandArguments, options, context) 
 		// Not applied with file paths to `.../node` since those indicate a clear intent to use a specific Node version.
 		// This also provides a way to opting out, e.g. using `process.execPath` instead of `node` to discard current CLI flags.
 		// Does not work with shebangs, but those don't work cross-platform anyway.
-		if (['node', 'node.exe'].includes(file.toLowerCase())) {
+		if (NODE_EXECUTABLES.has(file.toLowerCase())) {
 			file = process.execPath;
 			commandArguments = [...process.execArgv.filter(flag => !flag.startsWith('--inspect')), ...commandArguments];
 		}
 
-		[file, commandArguments, options] = await applyForceShell(file, commandArguments, options);
-		[file, commandArguments, options] = concatenateShell(file, commandArguments, options);
+		if (IS_WINDOWS && await shouldForceShell(file, options)) {
+			[file, commandArguments, options] = applyForceShell(file, commandArguments, options);
+		}
+
+		if (options.shell && commandArguments.length > 0) {
+			[file, commandArguments, options] = concatenateShell(file, commandArguments, options);
+		}
+
 		const instance = spawn(file, commandArguments, options);
 		bufferOutput(instance.stdout, context, 'stdout');
 		bufferOutput(instance.stderr, context, 'stderr');
@@ -41,9 +48,7 @@ export const spawnSubprocess = async (file, commandArguments, options, context) 
 // However, we rely on users splitting command arguments as an array.
 // For example, this allows us to easily detect whether the binary file is `node` or `node.exe`.
 // So we do want users to pass array of arguments even with `shell: true`, but we also want to avoid any warning.
-const concatenateShell = (file, commandArguments, options) => options.shell && commandArguments.length > 0
-	? [[file, ...commandArguments].join(' '), [], options]
-	: [file, commandArguments, options];
+const concatenateShell = (file, commandArguments, options) => [[file, ...commandArguments].join(' '), [], options];
 
 const bufferOutput = (stream, {state}, streamName) => {
 	if (stream) {

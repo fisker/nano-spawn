@@ -13,13 +13,15 @@ export default function spawn(file, second, third, previous) {
 	const spawnOptions = getOptions(options);
 	const nodeChildProcess = spawnSubprocess(file, commandArguments, spawnOptions, context);
 	let subprocess = getResult(nodeChildProcess, spawnOptions, context);
-	Object.assign(subprocess, {nodeChildProcess});
-	subprocess = previous ? handlePipe([previous, subprocess]) : subprocess;
+	subprocess.nodeChildProcess = nodeChildProcess;
+	if (previous) {
+		subprocess = handlePipe([previous, subprocess]);
+		subprocess.nodeChildProcess = nodeChildProcess;
+	}
 
 	const stdout = lineIterator(subprocess, context, 'stdout');
 	const stderr = lineIterator(subprocess, context, 'stderr');
 	return Object.assign(subprocess, {
-		nodeChildProcess,
 		stdout,
 		stderr,
 		[Symbol.asyncIterator]: () => combineAsyncIterators(stdout, stderr),

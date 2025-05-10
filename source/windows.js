@@ -4,17 +4,16 @@ import process from 'node:process';
 
 // When setting `shell: true` under-the-hood, we must manually escape the file and arguments.
 // This ensures arguments are properly split, and prevents command injection.
-export const applyForceShell = async (file, commandArguments, options) => await shouldForceShell(file, options)
-	? [escapeFile(file), commandArguments.map(argument => escapeArgument(argument)), {...options, shell: true}]
-	: [file, commandArguments, options];
+export const applyForceShell = (file, commandArguments, options) =>
+	[escapeFile(file), commandArguments.map(argument => escapeArgument(argument)), {...options, shell: true}];
 
 // On Windows, running most executable files (except *.exe and *.com) requires using a shell.
 // This includes *.cmd and *.bat, which itself includes Node modules binaries.
 // We detect this situation and automatically:
 //  - Set the `shell: true` option
 //  - Escape shell-specific characters
-const shouldForceShell = async (file, {shell, cwd, env = process.env}) => process.platform === 'win32'
-	&& !shell
+export const shouldForceShell = async (file, {shell, cwd, env = process.env}) =>
+	!shell
 	&& !(await isExe(file, cwd, env));
 
 // Detect whether the executable file is a *.exe or *.com file.
